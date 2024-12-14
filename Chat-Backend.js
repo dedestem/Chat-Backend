@@ -53,7 +53,7 @@ app.post('/signup', (req, res) => {
     return res.status(400).json({ error: 'Username is required' });
   }
 
-  const secret = speakeasy.generateSecret({ length: 20 });
+  const secret = speakeasy.generateSecret({ length: 20, name: `Chat (${username})` });
   console.log('Generated secret for user:', secret.base32);
 
   db.run('INSERT INTO users (username, secret) VALUES (?, ?)', [username, secret.base32], function (err) {
