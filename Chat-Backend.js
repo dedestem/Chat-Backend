@@ -10,6 +10,7 @@ const port = 3000;
 
 // Allow all origins
 app.use(cors());
+app.options('*', cors());
 
 // SQLite DB setup
 const db = new sqlite3.Database('./users.db', (err) => {
