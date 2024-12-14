@@ -2,12 +2,12 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
+const crypto = require('crypto');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 
 const app = express();
 const port = 6000;
@@ -16,13 +16,13 @@ const dbFile = path.join(__dirname, 'users.db');
 // Middleware
 app.use(helmet()); // Adds security headers
 app.use(cors({
-  origin: 'http://127.0.0.1:1430', // Tauri app origin
+  origin: 'http://127.0.0.1:1430', // Frontend origin
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type'],
 }));
 app.use(bodyParser.json());
 
-// Set up SQLite database
+// SQLite Database setup
 if (!fs.existsSync(dbFile)) {
   fs.writeFileSync(dbFile, '');
 }
@@ -34,7 +34,7 @@ const db = new sqlite3.Database(dbFile, (err) => {
   console.log('Connected to SQLite database.');
 });
 
-// Create users table if not exists
+// Create users and chats tables if not exists
 db.run(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,7 +45,6 @@ db.run(`
   );
 `);
 
-// Create chats table if not exists
 db.run(`
   CREATE TABLE IF NOT EXISTS chats (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -112,23 +111,6 @@ app.post('/login', (req, res) => {
   });
 });
 
-// Check session validity API
-app.post('/check-session', (req, res) => {
-  const { username, authToken } = req.body;
-  if (!username || !authToken) return res.status(400).json({ error: 'Username and authToken are required' });
-
-  db.get('SELECT token, token_expiry FROM users WHERE username = ?', [username], (err, row) => {
-    if (err) return res.status(500).json({ error: 'Database error' });
-    if (!row) return res.status(404).json({ error: 'User not found' });
-
-    // Check token and expiry
-    if (row.token !== authToken) return res.status(401).json({ error: 'Invalid authToken' });
-    if (Date.now() > row.token_expiry) return res.status(401).json({ error: 'Token has expired' });
-
-    res.status(200).json({ message: 'Session is valid', valid: true });
-  });
-});
-
 // Create a new chat
 app.post('/new-chat', (req, res) => {
   const { username, authToken, otherUsername } = req.body;
@@ -177,9 +159,16 @@ app.post('/get-chats', (req, res) => {
   });
 });
 
-// Catch-all route for invalid endpoints
-app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found' });
+// Deleting the keys once shared between clients (clearing DB entries)
+app.post('/delete-keys', (req, res) => {
+  const { username, otherUsername } = req.body;
+  if (!username || !otherUsername) return res.status(400).json({ error: 'Username and otherUsername are required' });
+
+  db.run('DELETE FROM users WHERE username = ?', [username], (err) => {
+    if (err) return res.status(500).json({ error: 'Failed to delete user keys' });
+
+    res.status(200).json({ message: 'Keys deleted successfully' });
+  });
 });
 
 // Start the server
