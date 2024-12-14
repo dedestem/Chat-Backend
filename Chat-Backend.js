@@ -34,14 +34,25 @@ const db = new sqlite3.Database(dbFile, (err) => {
   console.log('Connected to SQLite database.');
 });
 
-// Create users table if not exists
+// Create necessary tables
 db.run(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     secret TEXT NOT NULL,
     token TEXT,
-    token_expiry INTEGER
+    token_expiry INTEGER,
+    public_key TEXT
+  );
+`);
+
+db.run(`
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sender TEXT NOT NULL,
+    recipient TEXT NOT NULL,
+    encrypted_message TEXT NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
@@ -100,7 +111,59 @@ app.post('/login', (req, res) => {
   });
 });
 
-// Check session validity API
+// Upload Public Key API
+app.post('/upload-key', (req, res) => {
+  const { username, publicKey } = req.body;
+  if (!username || !publicKey) return res.status(400).json({ error: 'Username and public key are required' });
+
+  db.run('UPDATE users SET public_key = ? WHERE username = ?', [publicKey, username], function (err) {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    res.status(200).json({ message: 'Public key updated' });
+  });
+});
+
+// Fetch Public Key API
+app.get('/get-key/:username', (req, res) => {
+  const { username } = req.params;
+
+  db.get('SELECT public_key FROM users WHERE username = ?', [username], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.status(404).json({ error: 'User not found' });
+
+    res.status(200).json({ publicKey: row.public_key });
+  });
+});
+
+// Send Encrypted Message API
+app.post('/send-message', (req, res) => {
+  const { from, to, encryptedMessage } = req.body;
+  if (!from || !to || !encryptedMessage) return res.status(400).json({ error: 'All fields are required' });
+
+  db.run(
+    'INSERT INTO messages (sender, recipient, encrypted_message) VALUES (?, ?, ?)',
+    [from, to, encryptedMessage],
+    function (err) {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      res.status(200).json({ message: 'Message sent' });
+    }
+  );
+});
+
+// Fetch Encrypted Messages API
+app.get('/fetch-messages/:username', (req, res) => {
+  const { username } = req.params;
+
+  db.all('SELECT * FROM messages WHERE recipient = ?', [username], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+
+    db.run('DELETE FROM messages WHERE recipient = ?', [username], function (err) {
+      if (err) return res.status(500).json({ error: 'Failed to clear messages' });
+      res.status(200).json({ messages: rows });
+    });
+  });
+});
+
+// Check Session Validity API
 app.post('/check-session', (req, res) => {
   const { username, authToken } = req.body;
   if (!username || !authToken) return res.status(400).json({ error: 'Username and authToken are required' });
@@ -109,7 +172,6 @@ app.post('/check-session', (req, res) => {
     if (err) return res.status(500).json({ error: 'Database error' });
     if (!row) return res.status(404).json({ error: 'User not found' });
 
-    // Check token and expiry
     if (row.token !== authToken) return res.status(401).json({ error: 'Invalid authToken' });
     if (Date.now() > row.token_expiry) return res.status(401).json({ error: 'Token has expired' });
 
