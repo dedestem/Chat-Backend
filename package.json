@@ -18,6 +18,7 @@
   "homepage": "https://github.com/dedestem/Chat-Backend#readme",
   "dependencies": {
     "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
     "express": "^4.21.2",
     "qrcode": "^1.5.4",
     "speakeasy": "^2.0.0",

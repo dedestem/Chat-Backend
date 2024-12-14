@@ -3,9 +3,13 @@ const sqlite3 = require('sqlite3').verbose();
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const bodyParser = require('body-parser');
+const cors = require('cors');
 
 const app = express();
 const port = 3000;
+
+// Allow all origins
+app.use(cors());
 
 // SQLite DB setup
 const db = new sqlite3.Database('./users.db', (err) => {
