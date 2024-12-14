@@ -17,6 +17,10 @@
   },
   "homepage": "https://github.com/dedestem/Chat-Backend#readme",
   "dependencies": {
-    "express": "^4.21.2"
+    "body-parser": "^1.20.3",
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0",
+    "sqlite3": "^5.1.7"
   }
 }
