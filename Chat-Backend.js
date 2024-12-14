@@ -6,7 +6,7 @@ const bodyParser = require('body-parser');
 const fs = require('fs');
 
 const app = express();
-const port = 3000;
+const port = 6000;
 
 // Check if the database file exists, if not create it
 const dbFile = './users.db';
