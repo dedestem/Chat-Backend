@@ -5,6 +5,14 @@ const qrcode = require('qrcode');
 const bodyParser = require('body-parser');
 const app = express();
 const port = 3000;
+
+// Check if the database file exists, if not create it
+const dbFile = './users.db';
+if (!fs.existsSync(dbFile)) {
+  console.log('Database file not found. Creating a new one...');
+  fs.writeFileSync(dbFile, '');
+}
+
 // SQLite DB setup
 const db = new sqlite3.Database('./users.db', (err) => {
   if (err) {
