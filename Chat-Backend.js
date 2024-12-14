@@ -4,7 +4,7 @@ const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const bodyParser = require('body-parser');
 const app = express();
-const port = 3000;
+const port = 6000;
 
 // Check if the database file exists, if not create it
 const dbFile = './users.db';
