@@ -82,6 +82,9 @@ app.post('/signup', (req, res) => {
 
 // Login API
 app.post('/login', (req, res) => {
+  console.debug(req);
+  console.debug(req.body);
+  console.debug(res);
   const { username, token } = req.body;
   console.log('Login request received with username:', username, 'and token:', token);
 
