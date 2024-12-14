@@ -3,18 +3,10 @@ const sqlite3 = require('sqlite3').verbose();
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const bodyParser = require('body-parser');
-const cors = require('cors');
 const fs = require('fs');
 
 const app = express();
 const port = 3000;
-
-// Allow all origins
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
 
 // Check if the database file exists, if not create it
 const dbFile = './users.db';
