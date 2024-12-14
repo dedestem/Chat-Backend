@@ -133,38 +133,43 @@ app.post('/login', (req, res) => {
   });
 });
 
-// Middleware to validate token
-function validateToken(req, res, next) {
-  const { username, token } = req.body;
+// Check session validity API
+app.post('/check-session', (req, res) => {
+  const { username, authToken } = req.body;
 
-  if (!username || !token) {
-    return res.status(400).json({ error: 'Username and token are required' });
+  if (!username || !authToken) {
+    console.log('Error: Username or authToken is missing');
+    return res.status(400).json({ error: 'Username and authToken are required' });
   }
 
   db.get('SELECT token, token_expiry FROM users WHERE username = ?', [username], (err, row) => {
     if (err) {
+      console.error('Database error during session check:', err);
       return res.status(500).json({ error: 'Database error' });
     }
     if (!row) {
+      console.log('Error: User not found for username:', username);
       return res.status(404).json({ error: 'User not found' });
     }
 
-    if (row.token !== token) {
-      return res.status(401).json({ error: 'Invalid token' });
+    // Check if the token matches
+    if (row.token !== authToken) {
+      console.log('Error: Invalid authToken for username:', username);
+      return res.status(401).json({ error: 'Invalid authToken' });
     }
 
+    // Check if the token has expired
     if (Date.now() > row.token_expiry) {
+      console.log('Error: Token has expired for username:', username);
       return res.status(401).json({ error: 'Token has expired' });
     }
 
-    next(); // Token is valid, proceed with the request
+    // Token is valid
+    console.log('Session is valid for username:', username);
+    res.status(200).json({ message: 'Session is valid', valid: true });
   });
-}
-
-// Example of a protected API that requires token validation
-app.get('/test', validateToken, (req, res) => {
-  res.status(200).json({ message: 'test ok!', username: req.body.username });
 });
+
 
 // Catch-all route
 app.use((req, res) => {
