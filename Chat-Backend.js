@@ -37,9 +37,9 @@ db.run(`
 app.use(bodyParser.json());
 
 // Debug
-app.get('/'), (req, res) => {
+app.get('/', (req, res) => {
   res.send('Hello!');
-}
+});
 
 // Signup API
 app.post('/signup', (req, res) => {
