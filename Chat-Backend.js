@@ -46,7 +46,6 @@ db.run(`
 // Signup API
 app.post('/signup', (req, res) => {
   const { username } = req.body;
-  console.log('Signup request received with username:', username);
   
   if (!username) {
     console.log('Error: Username is missing');
@@ -73,8 +72,6 @@ app.post('/signup', (req, res) => {
         console.error('Failed to generate QR code:', err);
         return res.status(500).json({ error: 'Failed to generate QR code' });
       }
-
-      console.log('QR Code URL generated:', qrCodeUrl);
       res.status(201).json({ message: 'User created', qrCodeUrl });
     });
   });
