@@ -14,28 +14,27 @@ const port = 6000;
 const dbFile = path.join(__dirname, 'users.db');
 
 // Middleware
-app.use(helmet()); // Security best practices
+app.use(helmet()); // Adds security headers
 app.use(cors({
-  origin: 'http://127.0.0.1:1430', // Allow requests from the Tauri app
+  origin: 'http://127.0.0.1:1430', // Tauri app origin
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type'],
 }));
 app.use(bodyParser.json());
 
-// Setup database
+// Set up SQLite database
 if (!fs.existsSync(dbFile)) {
-  console.log('Database file not found. Creating a new one...');
   fs.writeFileSync(dbFile, '');
 }
 const db = new sqlite3.Database(dbFile, (err) => {
   if (err) {
     console.error('Database connection error:', err.message);
     process.exit(1);
-  } else {
-    console.log('Connected to SQLite database.');
   }
+  console.log('Connected to SQLite database.');
 });
 
+// Create users table if not exists
 db.run(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,32 +53,20 @@ function generateToken() {
 // Signup API
 app.post('/signup', (req, res) => {
   const { username } = req.body;
-
-  if (!username) {
-    console.log('Error: Username is missing');
-    return res.status(400).json({ error: 'Username is required' });
-  }
+  if (!username) return res.status(400).json({ error: 'Username is required' });
 
   const secret = speakeasy.generateSecret({ length: 20, name: `Chat (${username})` });
-  console.log('Generated secret for user:', secret.base32);
 
   db.run('INSERT INTO users (username, secret) VALUES (?, ?)', [username, secret.base32], function (err) {
     if (err) {
       if (err.code === 'SQLITE_CONSTRAINT') {
-        console.log('Error: Username already exists');
         return res.status(400).json({ error: 'Username already exists' });
       }
-      console.error('Database error during signup:', err);
       return res.status(500).json({ error: 'Database error' });
     }
 
-    console.log('User created in database with ID:', this.lastID);
-
     qrcode.toDataURL(secret.otpauth_url, (err, qrCodeUrl) => {
-      if (err) {
-        console.error('Failed to generate QR code:', err);
-        return res.status(500).json({ error: 'Failed to generate QR code' });
-      }
+      if (err) return res.status(500).json({ error: 'Failed to generate QR code' });
       res.status(201).json({ message: 'User created', qrCodeUrl });
     });
   });
@@ -88,21 +75,11 @@ app.post('/signup', (req, res) => {
 // Login API
 app.post('/login', (req, res) => {
   const { username, token } = req.body;
-
-  if (!username || !token) {
-    console.log('Error: Username or token is missing');
-    return res.status(400).json({ error: 'Username and token are required' });
-  }
+  if (!username || !token) return res.status(400).json({ error: 'Username and token are required' });
 
   db.get('SELECT secret FROM users WHERE username = ?', [username], (err, row) => {
-    if (err) {
-      console.error('Database error during login:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (!row) {
-      console.log('Error: User not found for username:', username);
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.status(404).json({ error: 'User not found' });
 
     const isValid = speakeasy.totp.verify({
       secret: row.secret,
@@ -111,23 +88,13 @@ app.post('/login', (req, res) => {
     });
 
     if (isValid) {
-      console.log('Login successful for username:', username);
-
-      // Generate a new token and set expiry time (e.g., 1 hour)
       const token = generateToken();
       const expiry = Date.now() + 3600000; // 1 hour expiry
-
       db.run('UPDATE users SET token = ?, token_expiry = ? WHERE username = ?', [token, expiry, username], function (err) {
-        if (err) {
-          console.error('Database error during token update:', err);
-          return res.status(500).json({ error: 'Database error' });
-        }
-
-        console.log('Token updated for username:', username);
+        if (err) return res.status(500).json({ error: 'Database error' });
         res.status(200).json({ message: 'Login successful', token });
       });
     } else {
-      console.log('Error: Invalid token for username:', username);
       res.status(401).json({ error: 'Invalid token' });
     }
   });
@@ -136,71 +103,22 @@ app.post('/login', (req, res) => {
 // Check session validity API
 app.post('/check-session', (req, res) => {
   const { username, authToken } = req.body;
-
-  if (!username || !authToken) {
-    console.log('Error: Username or authToken is missing');
-    return res.status(400).json({ error: 'Username and authToken are required' });
-  }
+  if (!username || !authToken) return res.status(400).json({ error: 'Username and authToken are required' });
 
   db.get('SELECT token, token_expiry FROM users WHERE username = ?', [username], (err, row) => {
-    if (err) {
-      console.error('Database error during session check:', err);
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (!row) {
-      console.log('Error: User not found for username:', username);
-      return res.status(404).json({ error: 'User not found' });
-    }
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.status(404).json({ error: 'User not found' });
 
-    // Check if the token matches
-    if (row.token !== authToken) {
-      console.log('Error: Invalid authToken for username:', username);
-      return res.status(401).json({ error: 'Invalid authToken' });
-    }
+    // Check token and expiry
+    if (row.token !== authToken) return res.status(401).json({ error: 'Invalid authToken' });
+    if (Date.now() > row.token_expiry) return res.status(401).json({ error: 'Token has expired' });
 
-    // Check if the token has expired
-    if (Date.now() > row.token_expiry) {
-      console.log('Error: Token has expired for username:', username);
-      return res.status(401).json({ error: 'Token has expired' });
-    }
-
-    // Token is valid
-    console.log('Session is valid for username:', username);
     res.status(200).json({ message: 'Session is valid', valid: true });
   });
 });
 
-// Middleware to validate token (if needed for other routes)
-function validateToken(req, res, next) {
-  const { username, token } = req.body;
-
-  if (!username || !token) {
-    return res.status(400).json({ error: 'Username and token are required' });
-  }
-
-  db.get('SELECT token, token_expiry FROM users WHERE username = ?', [username], (err, row) => {
-    if (err) {
-      return res.status(500).json({ error: 'Database error' });
-    }
-    if (!row) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    if (row.token !== token) {
-      return res.status(401).json({ error: 'Invalid token' });
-    }
-
-    if (Date.now() > row.token_expiry) {
-      return res.status(401).json({ error: 'Token has expired' });
-    }
-
-    next(); // Token is valid, proceed with the request
-  });
-}
-
-// Catch-all route
+// Catch-all route for invalid endpoints
 app.use((req, res) => {
-  console.log('404 Error: Endpoint not found for', req.method, req.url);
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
