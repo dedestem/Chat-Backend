@@ -1,0 +1,19 @@
+{
+  "name": "chat-backend",
+  "version": "1.0.0",
+  "description": "The secure and opensource backend for the chat app chat",
+  "main": "Chat-Backend.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dedestem/Chat-Backend.git"
+  },
+  "author": "davidnet & dedestem",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dedestem/Chat-Backend/issues"
+  },
+  "homepage": "https://github.com/dedestem/Chat-Backend#readme"
+}
