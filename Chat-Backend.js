@@ -5,6 +5,7 @@ const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
+const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 
@@ -14,6 +15,11 @@ const dbFile = path.join(__dirname, 'users.db');
 
 // Middleware
 app.use(helmet()); // Security best practices
+app.use(cors({
+  origin: 'http://127.0.0.1:1430', // Allow requests from the Tauri app
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+}));
 app.use(bodyParser.json());
 
 // Setup database
