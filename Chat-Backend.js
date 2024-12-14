@@ -4,19 +4,27 @@ const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const fs = require('fs');
 
 const app = express();
 const port = 3000;
 
 // Allow all origins
 app.use(cors({
-  origin: '*', // Your frontend's origin
-  methods: ['GET', 'POST'], // Allowed HTTP methods
-  allowedHeaders: ['Content-Type', 'Authorization'] // Allowed headers
+  origin: '*',
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Check if the database file exists, if not create it
+const dbFile = './users.db';
+if (!fs.existsSync(dbFile)) {
+  console.log('Database file not found. Creating a new one...');
+  fs.writeFileSync(dbFile, '');
+}
+
 // SQLite DB setup
-const db = new sqlite3.Database('./users.db', (err) => {
+const db = new sqlite3.Database(dbFile, (err) => {
   if (err) {
     console.error('Error opening database:', err.message);
   } else {
@@ -36,10 +44,14 @@ db.run(`
 // Middleware for parsing JSON
 app.use(bodyParser.json());
 
-// Debug
-app.get('/', (req, res) => {
-  res.send('Hello!');
-});
+// Root route
+defaultRoute(app);
+
+function defaultRoute(app) {
+  app.get('/', (req, res) => {
+    res.send("db stasis:")
+  });
+};
 
 // Signup API
 app.post('/signup', (req, res) => {
@@ -62,7 +74,7 @@ app.post('/signup', (req, res) => {
 
       res.status(201).json({
         message: 'User created successfully',
-        qrCodeUrl: data_url, // Send the QR code URL to the frontend for display
+        qrCodeUrl: data_url // Send the QR code URL to the frontend for display
       });
     });
   });
