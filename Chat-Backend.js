@@ -10,7 +10,7 @@ const port = 3000;
 
 // Allow all origins
 app.use(cors({
-  origin: 'http://127.0.0.1:1430', // Your frontend's origin
+  origin: '*', // Your frontend's origin
   methods: ['GET', 'POST'], // Allowed HTTP methods
   allowedHeaders: ['Content-Type', 'Authorization'] // Allowed headers
 }));
