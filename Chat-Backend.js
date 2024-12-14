@@ -170,6 +170,33 @@ app.post('/check-session', (req, res) => {
   });
 });
 
+// Middleware to validate token (if needed for other routes)
+function validateToken(req, res, next) {
+  const { username, token } = req.body;
+
+  if (!username || !token) {
+    return res.status(400).json({ error: 'Username and token are required' });
+  }
+
+  db.get('SELECT token, token_expiry FROM users WHERE username = ?', [username], (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: 'Database error' });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (row.token !== token) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    if (Date.now() > row.token_expiry) {
+      return res.status(401).json({ error: 'Token has expired' });
+    }
+
+    next(); // Token is valid, proceed with the request
+  });
+}
 
 // Catch-all route
 app.use((req, res) => {
