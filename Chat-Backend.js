@@ -1,73 +1,61 @@
+// Improved Node.js Backend for Your Tauri App
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const speakeasy = require('speakeasy');
 const qrcode = require('qrcode');
 const bodyParser = require('body-parser');
+const helmet = require('helmet');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const port = 6000;
+const dbFile = path.join(__dirname, 'users.db');
 
-// Check if the database file exists, if not create it
-const dbFile = './users.db';
+// Middleware
+app.use(helmet()); // Security best practices
+app.use(bodyParser.json());
+
+// Setup database
 if (!fs.existsSync(dbFile)) {
   console.log('Database file not found. Creating a new one...');
   fs.writeFileSync(dbFile, '');
 }
-
-// SQLite DB setup
 const db = new sqlite3.Database(dbFile, (err) => {
   if (err) {
-    console.error('Error opening database:', err.message);
+    console.error('Database connection error:', err.message);
+    process.exit(1);
   } else {
     console.log('Connected to SQLite database.');
   }
 });
 
-// Create table if not exists
 db.run(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
-    secret TEXT
+    username TEXT UNIQUE NOT NULL,
+    secret TEXT NOT NULL
   );
 `);
-
-// Middleware for parsing JSON
-app.use(bodyParser.json());
-
-// Root route
-defaultRoute(app);
-
-function defaultRoute(app) {
-  app.get('/', (req, res) => {
-    res.send("db stasis:")
-  });
-};
 
 // Signup API
 app.post('/signup', (req, res) => {
   const { username } = req.body;
+  if (!username) return res.status(400).json({ error: 'Username is required' });
 
-  // Generate a secret for the user using speakeasy
   const secret = speakeasy.generateSecret({ length: 20 });
-
-  // Save the username and secret in the database
   db.run('INSERT INTO users (username, secret) VALUES (?, ?)', [username, secret.base32], function (err) {
     if (err) {
-      return res.status(400).json({ error: err.message });
+      if (err.code === 'SQLITE_CONSTRAINT') {
+        return res.status(400).json({ error: 'Username already exists' });
+      }
+      return res.status(500).json({ error: 'Database error' });
     }
 
-    // Generate QR code for the user to scan
-    qrcode.toDataURL(secret.otpauth_url, (err, data_url) => {
-      if (err) {
-        return res.status(400).json({ error: 'Failed to generate QR code' });
-      }
+    qrcode.toDataURL(secret.otpauth_url, (err, qrCodeUrl) => {
+      if (err) return res.status(500).json({ error: 'Failed to generate QR code' });
 
-      res.status(201).json({
-        message: 'User created successfully',
-        qrCodeUrl: data_url // Send the QR code URL to the frontend for display
-      });
+      res.status(201).json({ message: 'User created', qrCodeUrl });
     });
   });
 });
@@ -75,27 +63,32 @@ app.post('/signup', (req, res) => {
 // Login API
 app.post('/login', (req, res) => {
   const { username, token } = req.body;
+  if (!username || !token) return res.status(400).json({ error: 'Username and token are required' });
 
-  // Fetch the user's secret from the database
   db.get('SELECT secret FROM users WHERE username = ?', [username], (err, row) => {
-    if (err || !row) {
-      return res.status(400).json({ error: 'Invalid username' });
-    }
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row) return res.status(404).json({ error: 'User not found' });
 
-    const secret = row.secret;
-
-    // Verify the token using the secret
-    const isValid = speakeasy.totp.verify({ secret, encoding: 'base32', token });
+    const isValid = speakeasy.totp.verify({
+      secret: row.secret,
+      encoding: 'base32',
+      token
+    });
 
     if (isValid) {
       res.status(200).json({ message: 'Login successful' });
     } else {
-      res.status(400).json({ error: 'Invalid token' });
+      res.status(401).json({ error: 'Invalid token' });
     }
   });
 });
 
+// Catch-all route
+app.use((req, res) => {
+  res.status(404).json({ error: 'Endpoint not found' });
+});
+
 // Start the server
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`Server running at http://localhost:${port}`);
 });
