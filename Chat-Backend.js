@@ -9,8 +9,11 @@ const app = express();
 const port = 3000;
 
 // Allow all origins
-app.use(cors());
-app.options('*', cors());
+app.use(cors({
+  origin: 'http://127.0.0.1:1430', // Your frontend's origin
+  methods: ['GET', 'POST'], // Allowed HTTP methods
+  allowedHeaders: ['Content-Type', 'Authorization'] // Allowed headers
+}));
 
 // SQLite DB setup
 const db = new sqlite3.Database('./users.db', (err) => {
