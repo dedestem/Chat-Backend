@@ -45,6 +45,18 @@ db.run(`
   );
 `);
 
+// Create chats table if not exists
+db.run(`
+  CREATE TABLE IF NOT EXISTS chats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username1 TEXT NOT NULL,
+    username2 TEXT NOT NULL,
+    FOREIGN KEY (username1) REFERENCES users(username),
+    FOREIGN KEY (username2) REFERENCES users(username),
+    UNIQUE(username1, username2)
+  );
+`);
+
 // Helper function to generate a random token
 function generateToken() {
   return crypto.randomBytes(16).toString('hex');
@@ -114,6 +126,54 @@ app.post('/check-session', (req, res) => {
     if (Date.now() > row.token_expiry) return res.status(401).json({ error: 'Token has expired' });
 
     res.status(200).json({ message: 'Session is valid', valid: true });
+  });
+});
+
+// Create a new chat
+app.post('/new-chat', (req, res) => {
+  const { username, authToken, otherUsername } = req.body;
+  if (!username || !authToken || !otherUsername) return res.status(400).json({ error: 'Username, authToken, and otherUsername are required' });
+
+  // Validate the session
+  db.get('SELECT token FROM users WHERE username = ?', [username], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row || row.token !== authToken) return res.status(401).json({ error: 'Invalid session' });
+
+    // Check if the other user exists
+    db.get('SELECT username FROM users WHERE username = ?', [otherUsername], (err, row2) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      if (!row2) return res.status(404).json({ error: 'Other user not found' });
+
+      // Check if the chat already exists
+      db.get('SELECT id FROM chats WHERE (username1 = ? AND username2 = ?) OR (username1 = ? AND username2 = ?)', [username, otherUsername, otherUsername, username], (err, chatRow) => {
+        if (err) return res.status(500).json({ error: 'Database error' });
+        if (chatRow) return res.status(400).json({ error: 'Chat already exists' });
+
+        // Create the new chat
+        db.run('INSERT INTO chats (username1, username2) VALUES (?, ?)', [username, otherUsername], function (err) {
+          if (err) return res.status(500).json({ error: 'Failed to create chat' });
+          res.status(201).json({ message: 'Chat created' });
+        });
+      });
+    });
+  });
+});
+
+// Get all chats for a user
+app.post('/get-chats', (req, res) => {
+  const { username, authToken } = req.body;
+  if (!username || !authToken) return res.status(400).json({ error: 'Username and authToken are required' });
+
+  // Validate the session
+  db.get('SELECT token FROM users WHERE username = ?', [username], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!row || row.token !== authToken) return res.status(401).json({ error: 'Invalid session' });
+
+    // Get all chats for the user
+    db.all('SELECT username1, username2 FROM chats WHERE username1 = ? OR username2 = ?', [username, username], (err, chats) => {
+      if (err) return res.status(500).json({ error: 'Database error' });
+      res.status(200).json({ chats });
+    });
   });
 });
 
